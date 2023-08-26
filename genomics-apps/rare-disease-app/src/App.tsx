@@ -1,6 +1,5 @@
-// import React from 'react';
+import React from 'react';
 import { useEffect, useState, useRef } from "react";
-import logo from './logo.svg';
 import './App.css';
 import SortableTable from "./components/SortableTable";
 import PatientInfoForm from "./components/PatientInfoForm";

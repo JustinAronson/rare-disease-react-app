@@ -67,6 +67,22 @@ type variant = {
     id: string,
 }
 
+type FHIREntry = {
+    'fullUrl': string,
+    'resource': {
+        'resourceType': string,
+        'id': number,
+        'code': {'coding': FHIRCoding},
+        'meta': {
+            'profile': string[],
+            'versionId': string
+        }
+    },
+    'search': {
+        'mode': string
+    }
+}
+
 const baseURLFSV = 'https://fhir-gen-ops.herokuapp.com/subject-operations/genotype-operations/$find-subject-variants?subject='
 const baseURLFC = 'https://fhir-gen-ops.herokuapp.com/utilities/get-feature-coordinates?gene='
 
@@ -444,6 +460,90 @@ function getGeneData({ patientID, gene, addAnnFlag, callback }:
     getFHIRResponse()
 }
 
+async function getGenesFromPhenotypes(patientID: string) {
+    if (patientID == "D13579") {
+        patientID = "13"
+    }
+    let url = `https://api.logicahealth.org/MTB/open/Observation?patient=${patientID}`
+    let obsResponse = await fetch(url)
+    var obsResponseJson = await obsResponse.json() as {'entry': FHIREntry[]}
+    if (obsResponseJson instanceof Error) {
+        console.log('It is an error!');
+        return [""]
+    }
+
+    let phenotypes: string[] = []
+    obsResponseJson.entry.map((entry) => {
+        if (entry.resource.resourceType != 'Observation' || !entry.resource.meta.profile.includes('https://github.com/phenopackets/core-ig/StructureDefinition/PhenotypicFeature')) {
+            // Not a phenotypic feature
+            return
+        }
+
+        entry.resource.code.coding.map((coding)=> {
+            if (coding.system != 'http://github.com/phenopackets/core-ig/CodeSystem/hpo') {
+                // Not an hpo term
+                return
+            }
+            phenotypes.push(coding.code)
+        })
+    })
+
+    if (phenotypes.length == 0) {
+        alert('Patient has no phenotypes! Please manually enter genes')
+        return []
+    }
+
+    let geneList: string[] = []
+    let urlAppend = ""
+    phenotypes.map((phenotype) => {
+        urlAppend += phenotype + ';'
+    })
+    if (urlAppend[-1] == ';') {
+        urlAppend = urlAppend.slice(0, -1)
+    }
+    url = `https://phen2gene.wglab.org/api?HPO_list=${urlAppend}`
+    let phenToGeneResponse = await fetch(url)
+    var phenToGeneResponseJson = await phenToGeneResponse.json() as {'results': [{
+        'Gene': string,
+        'Rank': string,
+        'Gene ID': string,
+        'Score': string,
+        'Status': string
+    }]}
+    if (phenToGeneResponseJson instanceof Error) {
+        console.log('It is an error!');
+        return [""]
+    }
+
+    phenToGeneResponseJson.results.slice(0, 10).map((result) => {
+        geneList.push(result.Gene)
+    })
+
+    return geneList
+}
+
+function processData({ patientID, geneList, addAnnFlag, setSpinnerInfo, callback }:
+    {
+        patientID: string,
+        geneList: string[],
+        addAnnFlag: boolean,
+        setSpinnerInfo: (geneNames: Array<string>) => void,
+        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void
+    }) {
+    console.log("GeneList: ")
+    console.log(geneList)
+
+    if (geneList.length == 0) {
+        return
+    }
+
+    setSpinnerInfo(geneList)
+
+    geneList.map((gene) => {
+        getGeneData({ patientID: patientID, gene: gene.trim(), addAnnFlag: addAnnFlag, callback: callback })
+    })
+}
+
 export default function PatientInfoForm({ callback, setSpinnerInfo }: {
     callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void,
     setSpinnerInfo: (geneNames: Array<string>) => void
@@ -454,24 +554,23 @@ export default function PatientInfoForm({ callback, setSpinnerInfo }: {
             patientID: HTMLInputElement;
             geneList: HTMLInputElement;
             addAnnFlag: HTMLInputElement;
+            phenotypeFlag: HTMLInputElement;
         }
 
         event.preventDefault();
         const elements = event.currentTarget.elements as FormDataElements;
 
-        const data = {
-            patientID: elements.patientID.value,
-            geneList: elements.geneList.value.replaceAll(" ", "").split(","),
-            addAnnFlag: elements.addAnnFlag.checked,
-        };
+        let geneList: string[]
 
-        setSpinnerInfo(data.geneList)
-
-        console.log(`Here's your data: ${JSON.stringify(data, undefined, 2)}`);
-        data.geneList.map((gene) => {
-            getGeneData({ patientID: data.patientID, gene: gene, addAnnFlag: data.addAnnFlag, callback: callback })
-        })
-
+        if (elements.phenotypeFlag) {
+            getGenesFromPhenotypes(elements.patientID.value).then(function(results){
+                geneList = results
+                processData({patientID: elements.patientID.value, geneList: geneList, addAnnFlag: elements.addAnnFlag.checked, setSpinnerInfo: setSpinnerInfo, callback: callback})
+            })
+        } else {
+            geneList = elements.geneList.value.split(",")
+            processData({patientID: elements.patientID.value, geneList: geneList, addAnnFlag: elements.addAnnFlag.checked, setSpinnerInfo: setSpinnerInfo, callback: callback})
+        }
     }
 
     return (
@@ -480,6 +579,9 @@ export default function PatientInfoForm({ callback, setSpinnerInfo }: {
             <label htmlFor="patientID" className="inputLabel">Enter Patient ID:</label>
             <input id="patientID" type="text" placeholder="HG00403" className="input" />
             <p></p>
+            <input id="phenotypeFlag" type="checkbox" />
+            <label htmlFor="phenotypeFlag">Import Phenotypes</label>
+
             <label htmlFor="geneList" className="inputLabel">Enter genes to study:</label>
             <input id="geneList" type="text" placeholder="BRCA1, BRCA2" className="input"/>
 
