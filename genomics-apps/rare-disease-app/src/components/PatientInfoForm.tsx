@@ -562,7 +562,9 @@ export default function PatientInfoForm({ callback, setSpinnerInfo }: {
 
         let geneList: string[]
 
-        if (elements.phenotypeFlag) {
+        console.log(elements.phenotypeFlag.checked)
+
+        if (elements.phenotypeFlag.checked) {
             getGenesFromPhenotypes(elements.patientID.value).then(function(results){
                 geneList = results
                 processData({patientID: elements.patientID.value, geneList: geneList, addAnnFlag: elements.addAnnFlag.checked, setSpinnerInfo: setSpinnerInfo, callback: callback})
