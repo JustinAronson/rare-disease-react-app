@@ -370,12 +370,13 @@ function translateFHIRResponse(response: FSVResponse, addAnnFlag: boolean) {
     return {geneTable: geneTable, mnvData: mnvData}
 }
 
-function getGeneData({ patientID, gene, addAnnFlag, callback }:
+function getGeneData({ patientID, gene, addAnnFlag, score, callback }:
     {
         patientID: string,
         gene: string,
         addAnnFlag: boolean,
-        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void
+        score?: string,
+        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) => void
     }) {
 
     // const [APIStatus, setAPIStatus] = useState("red")
@@ -454,7 +455,7 @@ function getGeneData({ patientID, gene, addAnnFlag, callback }:
             APIStatus = 'green'
         }
 
-        callback({ geneName: gene, geneData: geneData, mnvData: mnvData })
+        callback({ geneName: gene, geneData: geneData, mnvData: mnvData, score: score })
     }
 
     getFHIRResponse()
@@ -469,7 +470,7 @@ async function getGenesFromPhenotypes(patientID: string) {
     var obsResponseJson = await obsResponse.json() as {'entry': FHIREntry[]}
     if (obsResponseJson instanceof Error) {
         console.log('It is an error!');
-        return [""]
+        return []
     }
 
     let phenotypes: string[] = []
@@ -493,7 +494,7 @@ async function getGenesFromPhenotypes(patientID: string) {
         return []
     }
 
-    let geneList: string[] = []
+    let geneList: Array<{gene: string, score?: string}> = []
     let urlAppend = ""
     phenotypes.map((phenotype) => {
         urlAppend += phenotype + ';'
@@ -512,11 +513,11 @@ async function getGenesFromPhenotypes(patientID: string) {
     }]}
     if (phenToGeneResponseJson instanceof Error) {
         console.log('It is an error!');
-        return [""]
+        return []
     }
 
     phenToGeneResponseJson.results.slice(0, 10).map((result) => {
-        geneList.push(result.Gene)
+        geneList.push({gene: result.Gene, score: result.Score})
     })
 
     return geneList
@@ -525,7 +526,7 @@ async function getGenesFromPhenotypes(patientID: string) {
 function processData({ patientID, geneList, addAnnFlag, setSpinnerInfo, callback }:
     {
         patientID: string,
-        geneList: string[],
+        geneList: Array<{gene: string, score?: string}>,
         addAnnFlag: boolean,
         setSpinnerInfo: (geneNames: Array<string>) => void,
         callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void
@@ -536,11 +537,12 @@ function processData({ patientID, geneList, addAnnFlag, setSpinnerInfo, callback
     if (geneList.length == 0) {
         return
     }
+    let genes: Array<string> = []
+    geneList.map((geneInfo) => {genes.push(geneInfo.gene)})
+    setSpinnerInfo(genes)
 
-    setSpinnerInfo(geneList)
-
-    geneList.map((gene) => {
-        getGeneData({ patientID: patientID, gene: gene.trim(), addAnnFlag: addAnnFlag, callback: callback })
+    geneList.map((geneDict) => {
+        getGeneData({ patientID: patientID, gene: geneDict.gene.trim(), addAnnFlag: addAnnFlag, score: geneDict.score, callback: callback })
     })
 }
 
@@ -560,7 +562,7 @@ export default function PatientInfoForm({ callback, setSpinnerInfo }: {
         event.preventDefault();
         const elements = event.currentTarget.elements as FormDataElements;
 
-        let geneList: string[]
+        let geneList: Array<{gene: string, score?: string}> = []
 
         console.log(elements.phenotypeFlag.checked)
 
@@ -570,7 +572,13 @@ export default function PatientInfoForm({ callback, setSpinnerInfo }: {
                 processData({patientID: elements.patientID.value, geneList: geneList, addAnnFlag: elements.addAnnFlag.checked, setSpinnerInfo: setSpinnerInfo, callback: callback})
             })
         } else {
-            geneList = elements.geneList.value.split(",")
+            let genes = elements.geneList.value.split(",")
+            genes.map((gene) => {
+                geneList.push({gene: gene})
+            })
+            if (!geneList) {
+                return
+            }
             processData({patientID: elements.patientID.value, geneList: geneList, addAnnFlag: elements.addAnnFlag.checked, setSpinnerInfo: setSpinnerInfo, callback: callback})
         }
     }

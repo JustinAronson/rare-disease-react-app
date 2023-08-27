@@ -30,13 +30,13 @@ type MNVRow = {
 }
 
 function App() {
-  const [geneButtons, setGeneButtons] = useState<Array<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }>>([])
+  const [geneButtons, setGeneButtons] = useState<Array<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }>>([])
   const [selectedGene, setSelectedGene] = useState<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }>({ geneName: "None", geneData: [], mnvData: [] })
   const [genesToLoad, setGenesToLoad] = useState<Array<string>>([])
 
   var geneListData: Array<{ geneName: string, geneData?: Array<VariantRow> }> = []
 
-  const getGeneData = (newGene: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => {
+  const getGeneData = (newGene: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) => {
     // Update state variable from within the form component
     setGeneButtons((prevGeneButtons) => {
       let geneButtonsUpdatedTarget = prevGeneButtons.filter(function (geneDict) {
@@ -67,15 +67,21 @@ function App() {
     setGenesToLoad(genesToLoad)
   }
 
-  function makeButton(geneDict: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) {
+  function makeButton(geneDict: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) {
     if (geneDict.geneName == "BRCA1") {
       console.log(geneButtons)
     }
+
+    let displayName = geneDict.geneName
+    if (geneDict.score) {
+      displayName += ` Score: ${geneDict.score.slice(0, 4)}`
+    }
+
     return (
       <button
         className="geneButton"
         onClick={() => setSelectedGene(geneDict)}>
-        {geneDict.geneName}
+        {displayName}
       </button>
     );
   }
