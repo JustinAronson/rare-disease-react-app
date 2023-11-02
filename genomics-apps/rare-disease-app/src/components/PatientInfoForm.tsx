@@ -67,6 +67,16 @@ type variant = {
     id: string,
 }
 
+type MetaData = {
+    "parameter": [{
+        "name": string,
+        "part": [{
+            "name": string,
+            "valueString": string
+        }]
+    }]
+}
+
 type FHIREntry = {
     'fullUrl': string,
     'resource': {
@@ -376,7 +386,7 @@ function getGeneData({ patientID, gene, addAnnFlag, score, callback }:
         gene: string,
         addAnnFlag: boolean,
         score?: string,
-        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) => void
+        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string, tested: boolean }) => void
     }) {
 
     // const [APIStatus, setAPIStatus] = useState("red")
@@ -455,10 +465,46 @@ function getGeneData({ patientID, gene, addAnnFlag, score, callback }:
             APIStatus = 'green'
         }
 
-        callback({ geneName: gene, geneData: geneData, mnvData: mnvData, score: score })
+        let tested = true
+        if (geneData.length == 0) {
+            tested = await findStudyMetadata(patientID, range)
+        }
+
+        callback({ geneName: gene, geneData: geneData, mnvData: mnvData, score: score, tested: tested})
     }
 
     getFHIRResponse()
+}
+
+async function findStudyMetadata(patientID: string, range: string) {
+    let url = `https://fhir-gen-ops.herokuapp.com/subject-operations/metadata-operations/$find-study-metadata?subject=${patientID}&ranges=${range}`
+
+    let metaDataResponse = await fetch(url)
+    var metaDataJson = await metaDataResponse.json() as MetaData
+    if (metaDataResponse instanceof Error) {
+        console.log('It is an error!');
+    }
+    else {
+        let parts = metaDataJson.parameter[0].part
+        for (var part of parts) {
+            if (part.name == "regionStudied") {
+                let regionsStudied = part.valueString.split("'")
+                regionsStudied = regionsStudied.slice(1, -1)
+                for (var region of regionsStudied) {
+                    if (region.slice(0, 12) != range.slice(0, 12)) {
+                        continue
+                    }
+
+                    if (+region.slice(13, 21) > +range.slice(22)
+                        || +region.slice(22) < +region.slice(13, 21)) {
+                            continue
+                    }
+                    return true
+                }
+            }
+        }
+    }
+    return false
 }
 
 async function getGenesFromPhenotypes(patientID: string) {
@@ -529,7 +575,7 @@ function processData({ patientID, geneList, addAnnFlag, setSpinnerInfo, callback
         geneList: Array<{gene: string, score?: string}>,
         addAnnFlag: boolean,
         setSpinnerInfo: (geneNames: Array<string>) => void,
-        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void
+        callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> , tested:boolean}) => void
     }) {
     console.log("GeneList: ")
     console.log(geneList)
@@ -547,7 +593,7 @@ function processData({ patientID, geneList, addAnnFlag, setSpinnerInfo, callback
 }
 
 export default function PatientInfoForm({ callback, setSpinnerInfo }: {
-    callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }) => void,
+    callback: (geneData: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> , tested: boolean}) => void,
     setSpinnerInfo: (geneNames: Array<string>) => void
 }) {
 

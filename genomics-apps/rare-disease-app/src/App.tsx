@@ -30,13 +30,11 @@ type MNVRow = {
 }
 
 function App() {
-  const [geneButtons, setGeneButtons] = useState<Array<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }>>([])
-  const [selectedGene, setSelectedGene] = useState<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow> }>({ geneName: "None", geneData: [], mnvData: [] })
+  const [geneButtons, setGeneButtons] = useState<Array<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string, tested: boolean}>>([])
+  const [selectedGene, setSelectedGene] = useState<{ geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, tested: boolean }>({ geneName: "None", geneData: [], mnvData: [], tested: false })
   const [genesToLoad, setGenesToLoad] = useState<Array<string>>([])
 
-  var geneListData: Array<{ geneName: string, geneData?: Array<VariantRow> }> = []
-
-  const getGeneData = (newGene: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) => {
+  const getGeneData = (newGene: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string, tested:boolean}) => {
     // Update state variable from within the form component
     setGeneButtons((prevGeneButtons) => {
       let geneButtonsUpdatedTarget = prevGeneButtons.filter(function (geneDict) {
@@ -67,7 +65,7 @@ function App() {
     setGenesToLoad(genesToLoad)
   }
 
-  function makeButton(geneDict: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string }) {
+  function makeButton(geneDict: { geneName: string, geneData: Array<VariantRow>, mnvData: Array<MNVRow>, score?: string, tested: boolean }) {
     if (geneDict.geneName == "BRCA1") {
       console.log(geneButtons)
     }
@@ -95,6 +93,11 @@ function App() {
   function displaySNVData() {
     if (selectedGene.geneData.length > 0) {
       return <SortableTable data={selectedGene.geneData} />
+    } else if (selectedGene.geneName != "None") {
+      if (selectedGene.tested) {
+        return <h1>Gene tested, no variants found</h1>
+      }
+        return <h1>Gene not tested</h1>
     }
   }
 
